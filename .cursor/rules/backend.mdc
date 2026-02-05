@@ -1,0 +1,189 @@
+---
+description: Rules for backend Python/FastAPI development
+globs: ["backend/**/*.py", "backend/**/*.txt", "backend/**/*.toml", "backend/**/*.yaml"]
+alwaysApply: false
+---
+
+# Backend Development Rules (Python/FastAPI)
+
+## 🐍 Python Standards
+
+### Version & Typing
+- Python 3.11+
+- Type hints: MANDATORY for all functions, methods, and class attributes
+- Use `from __future__ import annotations` for forward references
+
+### Naming Conventions
+```python
+class UserService:          # PascalCase for classes
+    def get_user(self):     # snake_case for functions/methods
+        pass
+
+MAX_RETRIES = 3             # UPPERCASE for constants
+user_name = "John"          # snake_case for variables
+```
+
+### Import Order
+```python
+# 1. Standard library
+import asyncio
+from datetime import datetime
+from typing import Optional, List
+
+# 2. Third-party
+from fastapi import Depends, HTTPException
+from sqlalchemy import Column, select
+from pydantic import BaseModel, Field
+
+# 3. Local application
+from app.models import User
+from app.services import AuthService
+from app.utils import helper
+```
+
+## 📝 Docstrings (MANDATORY!)
+
+Every function/method MUST have a detailed docstring:
+
+```python
+async def create_user(
+    email: str,
+    password: str,
+    role: UserRole = UserRole.USER,
+) -> User:
+    """
+    Create a new user in the system.
+    
+    Performs:
+    1. Email validation (uniqueness, format)
+    2. Password hashing (bcrypt, 12 rounds)
+    3. Database record creation
+    4. Welcome email dispatch (async)
+    
+    Args:
+        email: User email. Must be unique in the system.
+        password: Plain text password. Minimum 8 characters.
+        role: User role. Defaults to USER.
+    
+    Returns:
+        User: Created user object with populated fields.
+    
+    Raises:
+        EmailAlreadyExistsError: If email is already registered.
+        WeakPasswordError: If password doesn't meet requirements.
+        DatabaseError: On database write error.
+    
+    Example:
+        >>> user = await create_user(
+        ...     email="john@example.com",
+        ...     password="SecurePass123!"
+        ... )
+    """
+```
+
+## 🏗️ Project Structure
+
+```
+backend/
+├── app/
+│   ├── __init__.py
+│   ├── main.py              # FastAPI app entry point
+│   ├── settings.py          # Pydantic Settings
+│   ├── api/                  # API routes
+│   │   ├── __init__.py
+│   │   ├── deps.py          # Dependencies
+│   │   ├── auth.py
+│   │   └── v1/
+│   ├── models/              # SQLAlchemy models
+│   │   ├── __init__.py
+│   │   ├── base.py
+│   │   └── user.py
+│   ├── services/            # Business logic
+│   │   ├── __init__.py
+│   │   └── auth.py
+│   ├── schemas/             # Pydantic schemas
+│   │   ├── __init__.py
+│   │   └── user.py
+│   └── utils/               # Helpers
+│       ├── __init__.py
+│       └── security.py
+├── tests/
+│   ├── unit/
+│   ├── integration/
+│   └── e2e/
+├── alembic/                 # Migrations
+├── requirements.txt
+├── settings.py              # Alternative: root settings
+└── .env.example
+```
+
+## ⚙️ Pydantic Settings
+
+Always use Pydantic Settings for configuration:
+
+```python
+from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+class DatabaseSettings(BaseSettings):
+    model_config = SettingsConfigDict(env_prefix="DB_")
+    
+    host: str = Field(description="Database host")
+    port: int = Field(default=5432)
+    user: str = Field(description="Database user")
+    password: str = Field(description="Database password")
+    name: str = Field(description="Database name")
+    
+    @property
+    def url(self) -> str:
+        return f"postgresql+asyncpg://{self.user}:{self.password}@{self.host}:{self.port}/{self.name}"
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+    
+    db: DatabaseSettings = DatabaseSettings()
+    debug: bool = Field(default=False)
+    environment: str = Field(default="local")
+
+settings = Settings()
+```
+
+## 🧪 Testing Requirements
+
+### Minimum tests per endpoint: 5
+```python
+class TestUserEndpoint:
+    async def test_success(self):
+        """✅ Success scenario (200/201)"""
+        
+    async def test_unauthorized(self):
+        """🔐 Without authorization (401)"""
+        
+    async def test_forbidden(self):
+        """🚫 No access rights (403)"""
+        
+    async def test_not_found(self):
+        """❓ Resource not found (404)"""
+        
+    async def test_validation_error(self):
+        """⚠️ Invalid data (422)"""
+```
+
+### Pytest markers
+```python
+@pytest.mark.unit          # Fast isolated tests
+@pytest.mark.integration   # Require DB/Redis
+@pytest.mark.slow          # Long tests (> 5 sec)
+```
+
+## 🚫 Prohibited
+
+- Hardcoding secrets in code
+- Using `os.getenv()` instead of Pydantic Settings
+- Skipping type hints
+- Functions without docstrings
+- Committing without tests

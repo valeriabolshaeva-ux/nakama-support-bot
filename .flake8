@@ -1,0 +1,56 @@
+[flake8]
+# === ОСНОВНЫЕ НАСТРОЙКИ ===
+# Максимальная длина строки (чуть больше стандартных 79 для читаемости)
+max-line-length = 120
+
+# Максимальная цикломатическая сложность функции
+max-complexity = 10
+
+# === ИГНОРИРУЕМЫЕ ПРАВИЛА ===
+ignore =
+    # W503: line break before binary operator — устарело, PEP 8 изменился
+    # E203: whitespace before ':' — конфликтует с black
+    # E266: too many leading '#' for block comment — мешает разделителям
+    W503,
+    E203,
+    E266,
+
+# === ИСКЛЮЧЕНИЯ ===
+exclude =
+    .git,
+    __pycache__,
+    .venv,
+    venv,
+    .eggs,
+    *.egg,
+    build,
+    dist,
+    migrations,
+    alembic/versions,
+    .mypy_cache,
+    .pytest_cache,
+    temporary,
+    node_modules,
+    frontend,
+
+# === PER-FILE IGNORES ===
+per-file-ignores =
+    # В __init__.py разрешаем неиспользуемые импорты (F401)
+    __init__.py: F401
+    # В тестах разрешаем длинные строки и assert
+    tests/*: E501, S101
+    # В конфигах разрешаем hardcoded значения
+    */settings.py: S105, S106
+
+# === ДОПОЛНИТЕЛЬНЫЕ ПРОВЕРКИ ===
+# Включаем проверку docstrings
+doctests = True
+
+# Показывать исходный код при ошибке
+show-source = True
+
+# Показывать статистику
+statistics = True
+
+# Количество ошибок до остановки (0 = не останавливаться)
+max-errors = 0
