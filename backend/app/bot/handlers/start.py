@@ -8,7 +8,7 @@ from typing import Optional
 from aiogram import F, Router
 from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
-from aiogram.types import CallbackQuery, Message
+from aiogram.types import CallbackQuery, Message, User
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.bot.keyboards import get_categories_keyboard, get_triage_keyboard
@@ -19,6 +19,17 @@ from app.database import operations as ops
 logger = logging.getLogger(__name__)
 
 router = Router(name="start")
+
+
+def _display_name(user: Optional[User]) -> str:
+    """Get greeting name: first name, or @username, or fallback."""
+    if not user:
+        return "друг"
+    if user.first_name:
+        return user.first_name.strip()
+    if user.username:
+        return f"@{user.username}"
+    return "друг"
 
 
 @router.message(CommandStart(deep_link=True))
@@ -64,9 +75,10 @@ async def handle_start_with_code(
         
         logger.info(f"User {message.from_user.id} bound to project {project.id}")
         
-        # Send welcome with categories
+        # Send personalized welcome with categories
+        name = _display_name(message.from_user)
         await message.answer(
-            Texts.code_accepted(project_name),
+            Texts.code_accepted_personal(name=name, project_name=project_name),
             reply_markup=get_categories_keyboard()
         )
     else:
@@ -220,8 +232,9 @@ async def handle_code_input(
         project_with_client = await ops.get_project_with_client(session, project.id)
         project_name = project_with_client.name if project_with_client else project.name
         
+        name = _display_name(message.from_user)
         await message.answer(
-            Texts.code_accepted(project_name),
+            Texts.code_accepted_personal(name=name, project_name=project_name),
             reply_markup=get_categories_keyboard()
         )
     else:

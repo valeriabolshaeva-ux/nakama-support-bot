@@ -34,6 +34,10 @@ class Texts:
     )
     
     CODE_ACCEPTED = "Отлично, код принят! Вы привязаны к проекту: {project_name}\n\nВыберите, что случилось:"
+    CODE_ACCEPTED_PERSONAL = (
+        "Привет, {name}! 👋\n\n"
+        "Код принят, вы привязаны к проекту: {project_name}. Выберите, что случилось:"
+    )
     
     # === Triage ===
     TRIAGE_ASK_COMPANY = "Укажите, пожалуйста, название компании или проекта, с которым работаете:"
@@ -451,6 +455,14 @@ class Texts:
     def code_accepted(project_name: str) -> str:
         """Get code accepted message."""
         return Texts.CODE_ACCEPTED.format(project_name=project_name)
+
+    @staticmethod
+    def code_accepted_personal(name: str, project_name: str) -> str:
+        """Get personalized code-accepted message (greeting by name/nick)."""
+        return Texts.CODE_ACCEPTED_PERSONAL.format(
+            name=name,
+            project_name=project_name
+        )
     
     @staticmethod
     def welcome_personal(name: str) -> str:
