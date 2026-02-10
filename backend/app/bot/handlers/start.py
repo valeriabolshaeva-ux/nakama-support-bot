@@ -108,9 +108,16 @@ async def handle_start_no_code(
         
         logger.info(f"Known user {user_id} started, project: {project_name}")
         
-        # Personalized greeting
+        # Check if user has any tickets (to distinguish first visit from return)
+        user_tickets = await ops.get_user_tickets(session, user_id, limit=1)
         user_name = message.from_user.full_name or message.from_user.first_name
-        welcome_text = Texts.welcome_back_personal(user_name)
+        
+        if user_tickets:
+            # Returning user
+            welcome_text = Texts.welcome_back_personal(user_name)
+        else:
+            # First time user (just bound, no tickets yet)
+            welcome_text = Texts.welcome_personal(user_name)
         
         await message.answer(
             welcome_text,
