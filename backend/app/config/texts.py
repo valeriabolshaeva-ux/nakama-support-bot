@@ -38,6 +38,11 @@ class Texts:
         "Привет, {name}! 👋\n\n"
         "Код принят, вы привязаны к проекту: {project_name}. Выберите, что случилось:"
     )
+    # For users who came via link — no mention of "code", less technical
+    WELCOME_VIA_LINK = (
+        "Привет, {name}! 👋\n\n"
+        "Вы в проекте {project_name}. Выберите, что случилось:"
+    )
     
     # === Triage ===
     TRIAGE_ASK_COMPANY = "Укажите, пожалуйста, название компании или проекта, с которым работаете:"
@@ -460,6 +465,14 @@ class Texts:
     def code_accepted_personal(name: str, project_name: str) -> str:
         """Get personalized code-accepted message (greeting by name/nick)."""
         return Texts.CODE_ACCEPTED_PERSONAL.format(
+            name=name,
+            project_name=project_name
+        )
+
+    @staticmethod
+    def welcome_via_link(name: str, project_name: str) -> str:
+        """Welcome when user came via invite link — no 'code' mentioned."""
+        return Texts.WELCOME_VIA_LINK.format(
             name=name,
             project_name=project_name
         )

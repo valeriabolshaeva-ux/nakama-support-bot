@@ -75,10 +75,10 @@ async def handle_start_with_code(
         
         logger.info(f"User {message.from_user.id} bound to project {project.id}")
         
-        # Send personalized welcome with categories
+        # Welcome via link — no mention of "code", just project
         name = _display_name(message.from_user)
         await message.answer(
-            Texts.code_accepted_personal(name=name, project_name=project_name),
+            Texts.welcome_via_link(name=name, project_name=project_name),
             reply_markup=get_categories_keyboard()
         )
     else:
