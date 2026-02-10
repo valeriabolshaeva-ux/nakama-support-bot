@@ -1,6 +1,6 @@
 """Application settings using Pydantic."""
 
-from typing import List, Union
+from typing import List, Optional, Union
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings
@@ -35,6 +35,11 @@ class Settings(BaseSettings):
     log_level: str = Field(
         default="info",
         description="Logging level (debug, info, warning, error)"
+    )
+    healthcheck_port: Optional[int] = Field(
+        default=None,
+        description="Port for HTTP healthcheck (e.g. PORT on Railway). If set, GET / returns 200.",
+        validation_alias="PORT",
     )
     
     # === Working Hours ===

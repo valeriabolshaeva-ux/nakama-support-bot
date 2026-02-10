@@ -6,6 +6,7 @@ Run with: python -m app.main
 
 import asyncio
 import logging
+import os
 import sys
 
 from aiogram import Bot, Dispatcher
@@ -24,6 +25,7 @@ from app.bot.handlers import (
 from app.bot.middlewares.database import DatabaseMiddleware
 from app.config.settings import settings
 from app.database.connection import close_db, init_db
+from app.health import run_healthcheck_server
 
 # Configure logging
 logging.basicConfig(
@@ -104,11 +106,21 @@ async def main() -> None:
     # 7. Operator handlers (for support group)
     dp.include_router(operator_router)
     
+    # Start HTTP healthcheck server if PORT is set (e.g. Railway)
+    # Read PORT from env directly so healthcheck works even if Settings alias differs per platform
+    health_server = None
+    port_str = os.environ.get("PORT")
+    if port_str and port_str.isdigit():
+        health_server = await run_healthcheck_server(int(port_str))
+    
     # Start polling
     logger.info("Starting polling...")
     try:
         await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
     finally:
+        if health_server is not None:
+            health_server.close()
+            await health_server.wait_closed()
         await bot.session.close()
 
 
