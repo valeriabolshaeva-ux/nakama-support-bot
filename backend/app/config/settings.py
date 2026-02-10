@@ -23,6 +23,14 @@ class Settings(BaseSettings):
         description="List of operator Telegram user IDs"
     )
     
+    @field_validator("bot_token", mode="before")
+    @classmethod
+    def strip_bot_token(cls, v: Union[str, None]) -> Union[str, None]:
+        """Strip whitespace from token (e.g. from env var paste)."""
+        if isinstance(v, str):
+            return v.strip()
+        return v
+    
     # === Application ===
     timezone: str = Field(
         default="Europe/Madrid",
