@@ -1,99 +1,122 @@
 """
-FastAPI Application Entry Point.
+Telegram Support Bot — Entry Point.
 
-This module creates and configures the FastAPI application instance.
+Run with: python -m app.main
 """
 
-from contextlib import asynccontextmanager
-from typing import AsyncGenerator
+import asyncio
+import logging
+import sys
 
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
+from aiogram import Bot, Dispatcher
+from aiogram.client.default import DefaultBotProperties
+from aiogram.enums import ParseMode
 
-from app.settings import settings
-
-
-@asynccontextmanager
-async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    """
-    Application lifespan handler.
-    
-    Manages startup and shutdown events for the application.
-    Use this for database connections, background tasks initialization, etc.
-    """
-    # === STARTUP ===
-    # TODO: Initialize database connection pool
-    # TODO: Initialize Redis connection
-    # TODO: Start background tasks
-    print(f"🚀 Starting {settings.app_name} in {settings.environment} mode")
-    
-    yield
-    
-    # === SHUTDOWN ===
-    # TODO: Close database connections
-    # TODO: Close Redis connections
-    # TODO: Stop background tasks
-    print(f"👋 Shutting down {settings.app_name}")
-
-
-# Create FastAPI application
-app = FastAPI(
-    title=settings.app_name,
-    description="Universal project template with FastAPI backend",
-    version="0.1.0",
-    docs_url="/docs" if settings.debug else None,
-    redoc_url="/redoc" if settings.debug else None,
-    openapi_url="/api/openapi.json" if settings.debug else None,
-    lifespan=lifespan,
+from app.bot.handlers import (
+    client_message_router,
+    common_router,
+    csat_router,
+    operator_commands_router,
+    operator_router,
+    start_router,
+    ticket_router,
 )
+from app.bot.middlewares.database import DatabaseMiddleware
+from app.config.settings import settings
+from app.database.connection import close_db, init_db
 
-# === CORS Middleware ===
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://localhost:5173",  # Vite default
-        "http://127.0.0.1:5173",
-    ],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+# Configure logging
+logging.basicConfig(
+    level=settings.log_level.upper(),
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    stream=sys.stdout
 )
+logger = logging.getLogger(__name__)
 
 
-# === Health Check ===
-@app.get("/health", tags=["Health"])
-async def health_check() -> dict:
-    """
-    Health check endpoint.
+async def on_startup(bot: Bot) -> None:
+    """Actions to perform on bot startup."""
+    logger.info("Initializing database...")
+    await init_db()
     
-    Returns:
-        dict: Health status of the application.
-    """
-    return {
-        "status": "healthy",
-        "environment": settings.environment,
-        "debug": settings.debug,
-    }
+    # Log bot info
+    bot_info = await bot.get_me()
+    logger.info(f"Bot started: @{bot_info.username} (id: {bot_info.id})")
 
 
-# === API Routers ===
-# TODO: Include API routers here
-# from app.api.v1 import auth, users
-# app.include_router(auth.router, prefix="/api/v1/auth", tags=["Auth"])
-# app.include_router(users.router, prefix="/api/v1/users", tags=["Users"])
+async def on_shutdown(bot: Bot) -> None:
+    """Actions to perform on bot shutdown."""
+    logger.info("Shutting down...")
+    await close_db()
+    logger.info("Shutdown complete")
 
 
-@app.get("/", tags=["Root"])
-async def root() -> dict:
-    """
-    Root endpoint.
+async def main() -> None:
+    """Initialize and start the bot."""
+    logger.info("=" * 50)
+    logger.info("Starting Telegram Support Bot")
+    logger.info("=" * 50)
     
-    Returns:
-        dict: Welcome message and API information.
-    """
-    return {
-        "message": f"Welcome to {settings.app_name}",
-        "docs": "/docs" if settings.debug else "Disabled in production",
-        "health": "/health",
-    }
+    # Log configuration
+    logger.info(f"Bot token: {settings.bot_token[:10]}...{settings.bot_token[-5:]}")
+    logger.info(f"Support chat ID: {settings.support_chat_id}")
+    logger.info(f"Operators: {settings.operators}")
+    logger.info(f"Timezone: {settings.timezone}")
+    logger.info(f"Working hours: {settings.work_hours_start}:00 - {settings.work_hours_end}:00")
+    logger.info(f"Database: {settings.db_path}")
+    
+    # Create bot instance
+    bot = Bot(
+        token=settings.bot_token,
+        default=DefaultBotProperties(parse_mode=ParseMode.HTML)
+    )
+    
+    # Create dispatcher
+    dp = Dispatcher()
+    
+    # Register startup/shutdown handlers
+    dp.startup.register(on_startup)
+    dp.shutdown.register(on_shutdown)
+    
+    # Setup middlewares
+    dp.message.middleware(DatabaseMiddleware())
+    dp.callback_query.middleware(DatabaseMiddleware())
+    
+    # Include routers (order matters!)
+    # 1. Start handler (processes /start with deep links first)
+    dp.include_router(start_router)
+    
+    # 2. Operator commands (private chat)
+    dp.include_router(operator_commands_router)
+    
+    # 3. Ticket creation flow
+    dp.include_router(ticket_router)
+    
+    # 4. Common commands (/help, /project)
+    dp.include_router(common_router)
+    
+    # 5. CSAT feedback
+    dp.include_router(csat_router)
+    
+    # 6. Client messages (catch-all for private messages)
+    dp.include_router(client_message_router)
+    
+    # 7. Operator handlers (for support group)
+    dp.include_router(operator_router)
+    
+    # Start polling
+    logger.info("Starting polling...")
+    try:
+        await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
+    finally:
+        await bot.session.close()
+
+
+if __name__ == "__main__":
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        logger.info("Bot stopped by user")
+    except Exception as e:
+        logger.exception(f"Fatal error: {e}")
+        sys.exit(1)

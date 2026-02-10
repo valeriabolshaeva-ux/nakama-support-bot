@@ -1,30 +1,42 @@
-# 🚀 Customer Support — Универсальный проект
+# Telegram Support Bot
 
-> Универсальный шаблон полноценного full-stack приложения с бэкендом (FastAPI) и фронтендом (React + shadcn/ui).
-
----
-
-## 📋 Содержание
-
-- [Быстрый старт](#-быстрый-старт)
-- [Структура проекта](#-структура-проекта)
-- [Технологический стек](#-технологический-стек)
-- [Разработка](#-разработка)
-- [Docker](#-docker)
-- [Тестирование](#-тестирование)
-- [Документация](#-документация)
+> Telegram-бот для поддержки клиентов с системой тикетов, invite-code идентификацией и CSAT оценками.
 
 ---
 
-## 🚀 Быстрый старт
+## Содержание
+
+- [Возможности](#возможности)
+- [Быстрый старт](#быстрый-старт)
+- [Структура проекта](#структура-проекта)
+- [Технологический стек](#технологический-стек)
+- [Конфигурация](#конфигурация)
+- [Тестирование](#тестирование)
+- [Документация](#документация)
+
+---
+
+## Возможности
+
+| Функция | Описание |
+|---------|----------|
+| **Invite-code идентификация** | Привязка клиентов к проектам через уникальные коды |
+| **Система тикетов** | Каждое обращение = отдельный topic в Support Group |
+| **Категоризация** | 9 типов обращений: баг, аналитика, интеграции, доступы, и др. |
+| **Управление статусами** | new → in_progress → closed через inline-кнопки |
+| **CSAT** | Сбор оценок (👍/👎) после закрытия тикета |
+| **Вложения** | Поддержка фото, видео, документов, голосовых |
+| **Triage** | Обработка пользователей без invite-code |
+
+---
+
+## Быстрый старт
 
 ### Требования
 
 - **Python** 3.11+
-- **Node.js** 18+
-- **Docker** и **Docker Compose** (опционально)
-- **PostgreSQL** 16+ (или через Docker)
-- **Redis** 7+ (опционально, для Celery)
+- **Telegram Bot Token** (от @BotFather)
+- **Telegram Group** с включёнными topics
 
 ### Установка
 
@@ -33,194 +45,128 @@
 git clone <repository-url>
 cd CustomerSupport
 
-# 2. Настроить переменные окружения
-cp backend/.env.example backend/.env
-cp frontend/.env.example frontend/.env
-# Отредактировать .env файлы с вашими данными
-
-# 3. Установить зависимости бэкенда
+# 2. Создать виртуальное окружение
 cd backend
 python -m venv .venv
 source .venv/bin/activate  # или .venv\Scripts\activate на Windows
+
+# 3. Установить зависимости
 pip install -r requirements.txt
 
-# 4. Установить зависимости фронтенда
-cd ../frontend
-npm install
+# 4. Настроить переменные окружения
+cp .env.example .env
+# Отредактировать .env с вашими данными
 
-# 5. Запустить приложение
-# Backend (в одном терминале)
-cd backend && uvicorn app.main:app --reload --port 8000
-
-# Frontend (в другом терминале)
-cd frontend && npm run dev
+# 5. Запустить бота
+python -m app.main
 ```
 
-### Docker (рекомендуется)
+### Подготовка Telegram
 
-```bash
-# Запуск в режиме разработки
-docker-compose -f docker-compose-dev.yml up -d
-
-# Логи
-docker-compose -f docker-compose-dev.yml logs -f
-
-# Остановка
-docker-compose -f docker-compose-dev.yml down
-```
+1. Создать бота через [@BotFather](https://t.me/BotFather) и получить `BOT_TOKEN`
+2. Создать группу "Support Team" и включить Topics (Settings → Topics)
+3. Добавить бота в группу с правами администратора
+4. Получить `SUPPORT_CHAT_ID` (отправить сообщение в группу, переслать боту @userinfobot)
+5. Получить `user_id` операторов для `OPERATORS`
 
 ---
 
-## 📁 Структура проекта
+## Структура проекта
 
 ```
 CustomerSupport/
 ├── .cursorrules              # Правила для Cursor AI
 ├── .cursor/rules/            # Детальные правила для агентов
-│   ├── backend.mdc
-│   └── frontend.mdc
+│   └── backend.mdc
 ├── .gitignore
 ├── .flake8
 ├── README.md
-├── docker-compose.yml        # Production
-├── docker-compose-dev.yml    # Development
-├── Dockerfile
 │
-├── backend/                  # 🐍 Python/FastAPI
+├── backend/                  # Python Telegram Bot
 │   ├── app/
-│   │   ├── api/              # API endpoints
-│   │   ├── models/           # SQLAlchemy models
+│   │   ├── bot/              # Telegram bot handlers
+│   │   │   ├── handlers/     # Message & callback handlers
+│   │   │   ├── keyboards/    # Inline keyboards
+│   │   │   ├── middlewares/  # Bot middlewares
+│   │   │   └── states/       # FSM states
+│   │   ├── database/         # SQLite models & operations
+│   │   │   ├── models.py     # SQLAlchemy models
+│   │   │   └── operations.py # CRUD operations
 │   │   ├── services/         # Business logic
-│   │   ├── schemas/          # Pydantic schemas
 │   │   ├── utils/            # Helpers
-│   │   ├── main.py           # Entry point
-│   │   └── settings.py       # Configuration
+│   │   ├── config/           # Configuration
+│   │   │   ├── settings.py   # Pydantic settings
+│   │   │   └── texts.py      # Bot messages templates
+│   │   └── main.py           # Entry point
 │   ├── tests/
 │   │   ├── unit/
 │   │   ├── integration/
-│   │   └── e2e/
+│   │   └── conftest.py
+│   ├── data/                 # SQLite database (gitignored)
 │   ├── requirements.txt
 │   ├── .env
 │   └── .env.example
 │
-├── frontend/                 # ⚛️ React/TypeScript
-│   ├── src/
-│   │   ├── app/              # App initialization
-│   │   ├── components/ui/    # shadcn/ui components
-│   │   ├── entities/         # Business entities
-│   │   ├── features/         # User scenarios
-│   │   ├── lib/              # Utilities
-│   │   ├── pages/            # Pages
-│   │   ├── shared/           # Shared components
-│   │   └── widgets/          # Widgets
-│   ├── package.json
-│   ├── vite.config.ts
-│   ├── .env
-│   └── .env.example
+├── docs/                     # Документация
+│   ├── product-requirements.md   # ТЗ проекта
+│   ├── project-plan.md           # План разработки
+│   ├── technical-summary.md      # Технический обзор
+│   ├── architecture.md           # Архитектурные диаграммы
+│   ├── database-schema.md        # Схема базы данных
+│   ├── bot-flows.md              # User flows бота
+│   ├── message-templates.md      # Тексты сообщений
+│   ├── agent-prompts.md          # Промпты для AI агентов
+│   └── changelogs/               # История изменений
 │
-├── docs/                     # 📚 Документация
-│   ├── project-plan.md
-│   ├── technical-summary.md
-│   ├── architecture.md
-│   ├── agent-prompts.md
-│   ├── changelogs/
-│   └── production/
-│
-├── scripts/                  # 🛠️ Вспомогательные скрипты
-└── temporary/                # 📝 Временные файлы (не коммитим)
+└── scripts/                  # Вспомогательные скрипты
+    └── init_data.py          # Начальное заполнение БД
 ```
 
 ---
 
-## 🛠️ Технологический стек
+## Технологический стек
 
-### Backend
 | Технология | Назначение |
 |------------|------------|
-| **FastAPI** | REST API фреймворк |
-| **PostgreSQL** | Основная база данных |
-| **SQLAlchemy** | ORM |
-| **Pydantic** | Валидация и сериализация |
-| **Celery + Redis** | Фоновые задачи |
+| **Python 3.11+** | Язык программирования |
+| **aiogram 3.x** | Telegram Bot framework |
+| **SQLAlchemy 2.0** | ORM |
+| **SQLite** | База данных |
+| **Pydantic** | Валидация и конфигурация |
 | **pytest** | Тестирование |
 
-### Frontend
-| Технология | Назначение |
-|------------|------------|
-| **React 18** | UI библиотека |
-| **TypeScript** | Типизация |
-| **Vite** | Сборщик |
-| **Tailwind CSS** | Стилизация |
-| **shadcn/ui** | UI компоненты |
-| **React Router** | Роутинг |
-| **TanStack Query** | Управление состоянием |
+---
+
+## Конфигурация
+
+### Переменные окружения (.env)
+
+```env
+# === Telegram Bot ===
+BOT_TOKEN=your_bot_token_here
+SUPPORT_CHAT_ID=-100xxxxxxxxxx
+OPERATORS=123456789,987654321
+
+# === Application ===
+TIMEZONE=Europe/Madrid
+DB_PATH=./data/support.sqlite
+LOG_LEVEL=info
+
+# === Working Hours ===
+WORK_HOURS_START=10
+WORK_HOURS_END=19
+WORK_DAYS=1,2,3,4,5
+```
+
+### Конфигурационные файлы
+
+- `backend/app/config/settings.py` — Pydantic Settings
+- `backend/app/config/texts.py` — Тексты сообщений бота
+- `backend/app/config/categories.py` — Категории обращений
 
 ---
 
-## 💻 Разработка
-
-### Backend
-
-```bash
-cd backend
-
-# Активировать виртуальное окружение
-source .venv/bin/activate
-
-# Запуск с hot-reload
-uvicorn app.main:app --reload --port 8000
-
-# Swagger UI
-open http://localhost:8000/docs
-```
-
-### Frontend
-
-```bash
-cd frontend
-
-# Запуск dev server
-npm run dev
-
-# Добавление shadcn компонента
-npx shadcn add button input card
-
-# Сборка
-npm run build
-```
-
----
-
-## 🐳 Docker
-
-### Development
-
-```bash
-# Запуск всех сервисов
-docker-compose -f docker-compose-dev.yml up -d
-
-# Отдельные сервисы
-docker-compose -f docker-compose-dev.yml up -d db redis
-
-# Просмотр логов
-docker-compose -f docker-compose-dev.yml logs -f app
-```
-
-### Production
-
-```bash
-# Сборка и запуск
-docker-compose up -d --build
-
-# Проверка статуса
-docker-compose ps
-```
-
----
-
-## 🧪 Тестирование
-
-### Backend
+## Тестирование
 
 ```bash
 cd backend
@@ -233,44 +179,33 @@ pytest -v -m unit
 
 # С покрытием
 pytest --cov=app --cov-report=html
-```
 
-### Frontend
-
-```bash
-cd frontend
-
-# Все тесты
-npm run test
-
-# С покрытием
-npm run test:coverage
+# Проверка кода
+flake8 app/
+black app/ --check
+isort app/ --check
+mypy app/
 ```
 
 ---
 
-## 📖 Документация
+## Документация
 
 | Документ | Описание |
 |----------|----------|
-| [docs/project-plan.md](docs/project-plan.md) | План проекта по фазам |
-| [docs/technical-summary.md](docs/technical-summary.md) | Техническое описание |
+| [docs/product-requirements.md](docs/product-requirements.md) | Техническое задание |
+| [docs/project-plan.md](docs/project-plan.md) | План разработки по фазам |
+| [docs/deployment.md](docs/deployment.md) | Инструкция по деплою |
+| [docs/technical-summary.md](docs/technical-summary.md) | Технический обзор |
 | [docs/architecture.md](docs/architecture.md) | Архитектурные диаграммы |
+| [docs/database-schema.md](docs/database-schema.md) | Схема базы данных SQLite |
+| [docs/bot-flows.md](docs/bot-flows.md) | User flows бота |
+| [docs/message-templates.md](docs/message-templates.md) | Тексты сообщений |
 | [docs/agent-prompts.md](docs/agent-prompts.md) | Промпты для AI агентов |
 
 ---
 
-## 🔐 Переменные окружения
-
-См. файлы `.env.example` в директориях `backend/` и `frontend/`.
-
-**Важно:**
-- Файл `.env` никогда не коммитится в репозиторий
-- Только `.env.example` с плейсхолдерами
-
----
-
-## 📝 Лицензия
+## Лицензия
 
 MIT
 

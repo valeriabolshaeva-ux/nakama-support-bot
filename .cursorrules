@@ -1,169 +1,257 @@
 # ==============================================================================
-# 📘 CURSOR RULES — Универсальный проект
+# CURSOR RULES — Telegram Support Bot
 # ==============================================================================
 # Правила для AI-агентов в Cursor IDE
-# Версия: 1.0 | Актуально для: 2026
+# Проект: Telegram бот поддержки клиентов
 # ==============================================================================
 
-## 🎯 Общие правила
+## Обзор проекта
 
-### Перед началом работы ОБЯЗАТЕЛЬНО:
-1. Прочитай `docs/project-plan.md` — пойми общий план
-2. Прочитай `docs/technical-summary.md` — пойми архитектуру
-3. Прочитай `docs/architecture.md` — пойми структуру системы
-4. Осознай своё место и задачу в контексте всего проекта
-5. **Только после этого приступай к выполнению!**
+Telegram Support Bot — бот для поддержки клиентов:
+- Приём обращений через личные сообщения
+- Идентификация клиентов через invite-code
+- Создание тикетов с отдельными topics в Support Group
+- Управление статусами через inline-кнопки
+- Сбор CSAT после закрытия
 
-### Язык
+## Перед началом работы ОБЯЗАТЕЛЬНО:
+
+1. Прочитай `docs/product-requirements.md` — полное ТЗ проекта
+2. Прочитай `docs/project-plan.md` — план разработки
+3. Прочитай `docs/database-schema.md` — схема БД
+4. Прочитай `docs/bot-flows.md` — user flows
+5. Прочитай `docs/message-templates.md` — тексты сообщений
+6. **Только после этого приступай к выполнению!**
+
+## Язык
+
 - Код, комментарии, docstrings — на **английском**
 - Документация и changelog — на **русском**
 - Общение с пользователем — на **русском**
+- Тексты бота для клиентов — на **русском**
 
-## 🔐 Секреты и конфигурация
+## Секреты и конфигурация
 
 ### Золотые правила:
 - ✅ Секреты — ТОЛЬКО в .env (никогда не коммитим!)
 - ✅ В репозитории — ТОЛЬКО .env.example (с плейсхолдерами)
 - ✅ Валидация конфига — через Pydantic Settings
-- ❌ НИКОГДА не хардкодить API ключи, пароли, токены в код
-- ❌ AI-агенты НИКОГДА не создают/редактируют .env (только .env.example)
+- ❌ НИКОГДА не хардкодить BOT_TOKEN, chat_id и другие секреты
+- ❌ AI-агенты НИКОГДА не создают/редактируют .env
 
-## 🐍 Backend (Python/FastAPI)
+## Python / aiogram
 
 ### Версия и типизация:
 - Python 3.11+
-- Type hints: ОБЯЗАТЕЛЬНЫ для всех функций и методов
+- aiogram 3.x (async/await)
+- Type hints: ОБЯЗАТЕЛЬНЫ для всех функций
 
 ### Именование:
-- `PascalCase` — классы
-- `snake_case` — функции, методы, переменные
+- `PascalCase` — классы, модели
+- `snake_case` — функции, переменные, handlers
 - `UPPERCASE` — константы
+- Handlers: `handle_<action>` или `on_<action>`
+- Callbacks: `callback_<action>`
 
 ### Порядок импортов:
-1. Standard library
-2. Third-party
-3. Local application
+1. Standard library (asyncio, datetime, etc.)
+2. Third-party (aiogram, sqlalchemy, pydantic)
+3. Local application (app.*)
 
 ### Docstrings (ОБЯЗАТЕЛЬНО!):
-- Каждая функция/метод ДОЛЖНА иметь docstring
-- Формат: описание, Args, Returns, Raises, Example
-
-### Комментарии в коде:
-- Используй разделители: `# === НАЗВАНИЕ БЛОКА ===`
-- Объясняй "почему", а не "что"
-
-### Зависимости:
-- FastAPI, Pydantic, SQLAlchemy, asyncpg
-- Celery + Redis для фоновых задач
-- pytest для тестов
-
-## ⚛️ Frontend (React/TypeScript)
-
-### Структура: Feature-Sliced Design + shadcn/ui
-- `src/app/` — инициализация, провайдеры, роутер
-- `src/components/ui/` — shadcn компоненты
-- `src/entities/` — бизнес-сущности
-- `src/features/` — пользовательские сценарии
-- `src/lib/` — утилиты (cn функция)
-- `src/pages/` — страницы
-- `src/shared/` — общие компоненты и хуки
-- `src/widgets/` — виджеты
-
-### Стилизация:
-- ✅ Tailwind CSS utility классы
-- ✅ cn() функция для условных классов
-- ✅ CSS переменные для темы
-- ❌ НЕ используем CSS Modules
-- ❌ НЕ используем inline styles
-
-### Компоненты:
-- shadcn/ui — базовые UI компоненты
-- Lucide React — иконки
-- react-hook-form + zod — формы
-- TanStack Table — таблицы
-
-## 🧪 Тестирование
-
-### Минимальные требования:
-- Каждый endpoint = минимум 5 тестов
-- Каждый сервис = минимум 3 теста
-
-### Маркеры pytest:
-- `@pytest.mark.unit` — быстрые изолированные
-- `@pytest.mark.integration` — требуют БД/Redis
-- `@pytest.mark.slow` — долгие (> 5 сек)
-
-### Перед коммитом:
-```bash
-pytest -v --tb=short
+```python
+async def handle_start(message: Message, state: FSMContext) -> None:
+    """
+    Handle /start command with optional invite code.
+    
+    Args:
+        message: Incoming message from user
+        state: FSM context for conversation state
+        
+    Flow:
+        1. Extract invite code from deep link if present
+        2. Validate code and bind user to project
+        3. Show welcome message or triage flow
+    """
 ```
 
-## 🔀 Git
+### Структура handlers:
+```python
+# === IMPORTS ===
+from aiogram import Router, F
+from aiogram.types import Message, CallbackQuery
+
+# === ROUTER ===
+router = Router(name="start")
+
+# === HANDLERS ===
+@router.message(Command("start"))
+async def handle_start(message: Message) -> None:
+    ...
+
+# === CALLBACKS ===
+@router.callback_query(F.data.startswith("category:"))
+async def callback_category(callback: CallbackQuery) -> None:
+    ...
+```
+
+## База данных (SQLite + SQLAlchemy)
+
+### Модели:
+- Использовать SQLAlchemy 2.0 declarative style
+- Все таблицы наследуются от Base
+- Обязательные поля: id, created_at
+
+### Операции:
+- Async sessions через `async_sessionmaker`
+- Отдельный файл `operations.py` с CRUD функциями
+- Транзакции через `async with session.begin()`
+
+## Keyboards (Inline)
+
+### Структура:
+```python
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.utils.keyboard import InlineKeyboardBuilder
+
+def get_categories_keyboard() -> InlineKeyboardMarkup:
+    """Build categories selection keyboard."""
+    builder = InlineKeyboardBuilder()
+    for cat in CATEGORIES:
+        builder.button(
+            text=cat.label,
+            callback_data=f"category:{cat.id}"
+        )
+    builder.adjust(1)  # One button per row
+    return builder.as_markup()
+```
+
+### Callback data:
+- Формат: `action:value` или `action:id:extra`
+- Максимум 64 байта!
+- Использовать CallbackData factory для сложных случаев
+
+## FSM (Finite State Machine)
+
+### States:
+```python
+from aiogram.fsm.state import State, StatesGroup
+
+class TicketCreation(StatesGroup):
+    waiting_category = State()
+    waiting_description = State()
+    waiting_attachments = State()
+```
+
+### Использование:
+- Сохранять данные в `state.update_data()`
+- Очищать state после завершения flow: `state.clear()`
+
+## Тексты сообщений
+
+### Правила:
+- Все тексты — в `config/texts.py`
+- Никаких хардкод строк в handlers
+- Использовать f-strings с переменными
+- Тональность: дружелюбная, короткие фразы
+
+### Пример:
+```python
+# config/texts.py
+class Texts:
+    WELCOME = "Привет! Я бот поддержки. Выберите, что случилось."
+    TICKET_CREATED = "Готово, обращение #{number} принято!"
+    ASK_DESCRIPTION = "Опишите проблему подробнее."
+```
+
+## Тестирование
+
+### Требования:
+- Каждый handler = минимум 3 теста
+- Моки для Telegram API
+- Тесты БД с in-memory SQLite
+
+### Структура тестов:
+```python
+@pytest.mark.asyncio
+async def test_start_with_valid_code():
+    """Test /start command with valid invite code."""
+    ...
+
+@pytest.mark.asyncio  
+async def test_start_without_code():
+    """Test /start command triggers triage flow."""
+    ...
+```
+
+## Git
 
 ### Формат коммитов (Conventional Commits):
-- `feat` — новая функциональность
-- `fix` — исправление бага
+- `feat(bot)` — новый handler/функция
+- `fix(db)` — исправление бага
+- `refactor(keyboards)` — рефакторинг
+- `test(handlers)` — тесты
 - `docs` — документация
-- `style` — форматирование
-- `refactor` — рефакторинг
-- `test` — тесты
-- `chore` — обслуживание
 
 ### Примеры:
 ```
-feat(auth): add JWT refresh token support
-fix(api): correct validation for email field
-docs(readme): update installation instructions
+feat(bot): add ticket creation flow with category selection
+fix(db): correct user binding when project changes
+test(handlers): add tests for CSAT feedback collection
 ```
 
-## 📁 Структура проекта
+## Структура проекта
 
 ```
-project_root/
-├── .cursorrules              # Правила для Cursor AI
-├── .cursor/rules/            # Детальные правила для агентов
-├── .env.example              # Пример переменных окружения
-├── .gitignore
-├── .flake8
-├── README.md
-├── docker-compose.yml
-├── docker-compose-dev.yml
-├── Dockerfile
-│
-├── backend/                  # Python/FastAPI бэкенд
-│   ├── app/
-│   ├── tests/
-│   ├── requirements.txt
-│   └── settings.py
-│
-├── frontend/                 # React/TypeScript фронтенд
-│   ├── src/
-│   ├── package.json
-│   └── vite.config.ts
-│
-├── docs/                     # Документация
-│   ├── project-plan.md
-│   ├── technical-summary.md
-│   ├── architecture.md
-│   ├── agent-prompts.md
-│   └── changelogs/
-│
-├── scripts/                  # Вспомогательные скрипты
-└── temporary/                # Временные файлы (не коммитим)
+backend/
+├── app/
+│   ├── bot/
+│   │   ├── handlers/         # Message handlers
+│   │   │   ├── __init__.py
+│   │   │   ├── start.py      # /start, invite-code
+│   │   │   ├── ticket.py     # Ticket creation flow
+│   │   │   ├── operator.py   # Operator actions in group
+│   │   │   └── common.py     # Help, project switch
+│   │   ├── keyboards/        # Inline keyboards
+│   │   │   ├── __init__.py
+│   │   │   ├── categories.py
+│   │   │   ├── ticket.py
+│   │   │   └── operator.py
+│   │   ├── middlewares/      # Request middlewares
+│   │   ├── states/           # FSM states
+│   │   └── filters/          # Custom filters
+│   ├── database/
+│   │   ├── models.py         # SQLAlchemy models
+│   │   ├── operations.py     # CRUD functions
+│   │   └── connection.py     # DB connection
+│   ├── services/             # Business logic
+│   │   ├── ticket.py         # Ticket service
+│   │   └── notification.py   # Sending to group
+│   ├── config/
+│   │   ├── settings.py       # Pydantic Settings
+│   │   ├── texts.py          # Message templates
+│   │   └── categories.py     # Categories config
+│   ├── utils/
+│   │   ├── timezone.py       # Working hours check
+│   │   └── formatting.py     # Message formatting
+│   └── main.py               # Entry point
+├── tests/
+└── requirements.txt
 ```
 
-## 📝 Changelog агента
+## Changelog агента
 
-После выполнения задачи создай файл `docs/changelogs/wave-X-agent-Y.md`:
+После выполнения задачи создай файл `docs/changelogs/YYYY-MM-DD-description.md`:
 - Что сделал
 - Какие файлы создал/изменил
 - Как проверить работу
 - Известные ограничения
 
-## 🚫 Запрещено
+## Запрещено
 
-- Хардкодить секреты
+- Хардкодить BOT_TOKEN, CHAT_ID и любые секреты
 - Редактировать .env файлы
-- Создавать файлы вне своей зоны ответственности
-- Пропускать тесты
+- Использовать синхронный код в async handlers
+- Блокирующие операции в event loop
+- Пропускать type hints
 - Коммитить без осмысленного сообщения

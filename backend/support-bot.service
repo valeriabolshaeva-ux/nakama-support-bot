@@ -1,0 +1,39 @@
+# Systemd service file for Telegram Support Bot
+# Copy to: /etc/systemd/system/support-bot.service
+#
+# Usage:
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable support-bot
+#   sudo systemctl start support-bot
+#   sudo systemctl status support-bot
+#   journalctl -u support-bot -f
+
+[Unit]
+Description=Telegram Support Bot
+After=network.target
+
+[Service]
+Type=simple
+User=botuser
+Group=botuser
+WorkingDirectory=/opt/support-bot/backend
+Environment=PYTHONPATH=/opt/support-bot/backend
+EnvironmentFile=/opt/support-bot/backend/.env
+ExecStart=/opt/support-bot/backend/.venv/bin/python -m app.main
+Restart=always
+RestartSec=10
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/opt/support-bot/backend/data
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=support-bot
+
+[Install]
+WantedBy=multi-user.target

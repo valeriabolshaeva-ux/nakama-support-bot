@@ -1,261 +1,488 @@
-# Техническое описание: Customer Support
+# Техническое описание: Telegram Support Bot
 
-## 1. Архитектура
+## Обзор
 
-См. [docs/architecture.md](architecture.md) для диаграмм.
+Telegram Support Bot — бот для поддержки клиентов, написанный на Python с использованием aiogram 3.x.
 
-### Стек технологий
-
-#### Backend
-| Компонент | Технология | Версия |
-|-----------|------------|--------|
-| Framework | FastAPI | 0.109+ |
-| Python | Python | 3.11+ |
-| Database | PostgreSQL | 16+ |
-| ORM | SQLAlchemy | 2.0+ |
-| Cache/Queue | Redis | 7+ |
-| Background Tasks | Celery | 5.3+ |
-| Validation | Pydantic | 2.5+ |
-
-#### Frontend
-| Компонент | Технология | Версия |
-|-----------|------------|--------|
-| Library | React | 18+ |
-| Language | TypeScript | 5.6+ |
-| Bundler | Vite | 6.0+ |
-| Styling | Tailwind CSS | 3.4+ |
-| UI Components | shadcn/ui | latest |
-| Routing | React Router | 6+ |
-| State | TanStack Query | 5+ |
+### Ключевые особенности:
+- Async/await архитектура
+- SQLite для хранения данных
+- FSM для управления состояниями диалога
+- Pydantic для валидации конфигурации
+- Topic-based маршрутизация в Support Group
 
 ---
 
-## 2. Структура проекта
+## Технологический стек
 
-### Backend (`backend/`)
+| Компонент | Технология | Версия | Назначение |
+|-----------|------------|--------|------------|
+| Runtime | Python | 3.11+ | Основной язык |
+| Bot Framework | aiogram | 3.x | Telegram Bot API |
+| ORM | SQLAlchemy | 2.0+ | Работа с БД |
+| Database | SQLite | 3 | Хранение данных |
+| Config | Pydantic | 2.x | Валидация настроек |
+| Testing | pytest | 8.x | Тестирование |
+| Async | asyncio | stdlib | Асинхронность |
+
+---
+
+## Структура проекта
 
 ```
 backend/
 ├── app/
-│   ├── __init__.py           # Версия пакета
-│   ├── main.py               # FastAPI entry point
-│   ├── settings.py           # Pydantic Settings
-│   ├── api/                  # API endpoints
+│   ├── __init__.py
+│   ├── main.py                    # Entry point, bot startup
+│   │
+│   ├── bot/
 │   │   ├── __init__.py
-│   │   └── v1/               # API version 1
-│   ├── models/               # SQLAlchemy models
-│   ├── services/             # Business logic
-│   ├── schemas/              # Pydantic schemas
-│   └── utils/                # Helpers
+│   │   ├── handlers/              # Message & callback handlers
+│   │   │   ├── __init__.py
+│   │   │   ├── start.py           # /start, invite-code flow
+│   │   │   ├── ticket.py          # Ticket creation FSM
+│   │   │   ├── client_message.py  # Messages from clients
+│   │   │   ├── operator.py        # Operator actions in group
+│   │   │   └── common.py          # /help, /project, errors
+│   │   │
+│   │   ├── keyboards/             # Inline keyboards builders
+│   │   │   ├── __init__.py
+│   │   │   ├── categories.py      # Category selection
+│   │   │   ├── ticket.py          # Ticket actions (skip, confirm)
+│   │   │   ├── operator.py        # Operator buttons
+│   │   │   ├── triage.py          # Triage flow buttons
+│   │   │   └── csat.py            # Feedback buttons
+│   │   │
+│   │   ├── states/                # FSM state groups
+│   │   │   ├── __init__.py
+│   │   │   ├── ticket.py          # TicketCreation states
+│   │   │   └── triage.py          # Triage states
+│   │   │
+│   │   ├── middlewares/           # Request middlewares
+│   │   │   ├── __init__.py
+│   │   │   ├── database.py        # Inject DB session
+│   │   │   └── logging.py         # Request logging
+│   │   │
+│   │   └── filters/               # Custom message filters
+│   │       ├── __init__.py
+│   │       ├── operator.py        # IsOperator filter
+│   │       └── group.py           # IsSupportGroup filter
+│   │
+│   ├── database/
+│   │   ├── __init__.py
+│   │   ├── connection.py          # Engine, session factory
+│   │   ├── models.py              # SQLAlchemy models
+│   │   └── operations.py          # CRUD functions
+│   │
+│   ├── services/
+│   │   ├── __init__.py
+│   │   ├── ticket.py              # Ticket business logic
+│   │   ├── user.py                # User binding logic
+│   │   └── notification.py        # Group notifications
+│   │
+│   ├── config/
+│   │   ├── __init__.py
+│   │   ├── settings.py            # Pydantic Settings
+│   │   ├── texts.py               # Bot message templates
+│   │   └── categories.py          # Ticket categories
+│   │
+│   └── utils/
+│       ├── __init__.py
+│       ├── timezone.py            # Working hours utils
+│       └── formatting.py          # Message formatting
+│
 ├── tests/
-│   ├── conftest.py           # Pytest fixtures
+│   ├── __init__.py
+│   ├── conftest.py                # Fixtures
 │   ├── unit/
-│   ├── integration/
-│   └── e2e/
-├── alembic/                  # Database migrations
+│   │   ├── test_ticket_service.py
+│   │   └── test_user_service.py
+│   └── integration/
+│       └── test_handlers.py
+│
+├── data/                          # SQLite DB (gitignored)
+│   └── support.sqlite
+│
 ├── requirements.txt
-├── .env                      # Environment (не коммитим!)
-└── .env.example              # Example environment
-```
-
-### Frontend (`frontend/`)
-
-```
-frontend/src/
-├── app/                      # App initialization
-│   ├── providers/            # Context providers
-│   │   └── ThemeProvider.tsx # Theme management
-│   └── styles/
-│       └── globals.css       # Tailwind + CSS variables
-├── components/
-│   └── ui/                   # shadcn/ui components
-│       ├── button.tsx
-│       ├── card.tsx
-│       └── input.tsx
-├── entities/                 # Business entities
-├── features/                 # User scenarios
-├── lib/
-│   └── utils.ts              # cn() utility
-├── pages/
-│   └── HomePage.tsx          # Home page
-├── shared/
-│   ├── components/           # Shared components
-│   │   └── ThemeToggle.tsx
-│   └── hooks/                # Custom hooks
-├── widgets/                  # Widget components
-├── App.tsx                   # Root component
-└── main.tsx                  # Entry point
+├── .env
+└── .env.example
 ```
 
 ---
 
-## 3. Конфигурация
-
-### Environment Variables
-
-Все переменные определены в `backend/.env.example` и `frontend/.env.example`.
-
-**Backend (Pydantic Settings):**
+## Конфигурация (Pydantic Settings)
 
 ```python
-from app.settings import settings
+# app/config/settings.py
+from pydantic_settings import BaseSettings
+from pydantic import Field
 
-# Database
-db_url = settings.db.url
+class Settings(BaseSettings):
+    # Telegram
+    bot_token: str = Field(..., description="Telegram Bot Token")
+    support_chat_id: int = Field(..., description="Support Group ID")
+    operators: list[int] = Field(default_factory=list, description="Operator user IDs")
+    
+    # Application
+    timezone: str = Field(default="Europe/Madrid")
+    db_path: str = Field(default="./data/support.sqlite")
+    log_level: str = Field(default="info")
+    
+    # Working Hours
+    work_hours_start: int = Field(default=10)
+    work_hours_end: int = Field(default=19)
+    work_days: list[int] = Field(default=[1, 2, 3, 4, 5])  # Mon-Fri
+    
+    model_config = {
+        "env_file": ".env",
+        "env_file_encoding": "utf-8",
+    }
 
-# OpenAI
-api_key = settings.openai.api_key
-
-# Environment
-is_debug = settings.debug
-env = settings.environment
-```
-
-**Frontend (Vite):**
-
-```typescript
-// Access env variables
-const apiUrl = import.meta.env.VITE_API_BASE_URL
-```
-
----
-
-## 4. API Endpoints
-
-### Health Check
-```
-GET /health
-```
-Возвращает статус приложения.
-
-### Root
-```
-GET /
-```
-Возвращает приветственное сообщение.
-
-### API Docs (только в debug режиме)
-```
-GET /docs      — Swagger UI
-GET /redoc     — ReDoc
+settings = Settings()
 ```
 
 ---
 
-## 5. База данных
+## База данных (SQLite + SQLAlchemy 2.0)
 
-### Подключение
+### Connection
 
 ```python
-# Async
-DATABASE_URL = "postgresql+asyncpg://user:pass@host:port/db"
+# app/database/connection.py
+from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 
-# Sync (для Alembic)
-DATABASE_URL = "postgresql://user:pass@host:port/db"
-```
-
-### Миграции (Alembic)
-
-```bash
-# Создать миграцию
-alembic revision --autogenerate -m "add users table"
-
-# Применить миграции
-alembic upgrade head
-
-# Откатить последнюю
-alembic downgrade -1
-```
-
----
-
-## 6. Тестирование
-
-### Backend
-
-```bash
-# Все тесты
-pytest -v
-
-# Только unit
-pytest -v -m unit
-
-# С покрытием
-pytest --cov=app --cov-report=html
-```
-
-### Frontend
-
-```bash
-# Все тесты
-npm run test
-
-# С покрытием
-npm run test:coverage
-```
-
----
-
-## 7. Docker
-
-### Development
-
-```bash
-docker-compose -f docker-compose-dev.yml up -d
-```
-
-**Сервисы:**
-- `app` — FastAPI (port 8000)
-- `db` — PostgreSQL (port 5432)
-- `redis` — Redis (port 6379)
-- `celery` — Celery worker
-- `celery-beat` — Celery scheduler
-
-### Production
-
-```bash
-docker-compose up -d --build
-```
-
----
-
-## 8. Внешние интеграции
-
-### OpenAI
-
-```python
-from app.settings import settings
-import openai
-
-openai.api_key = settings.openai.api_key
-```
-
-### Supabase
-
-```python
-from app.settings import settings
-from supabase import create_client
-
-supabase = create_client(
-    settings.supabase.url,
-    settings.supabase.secret_key
+engine = create_async_engine(
+    f"sqlite+aiosqlite:///{settings.db_path}",
+    echo=settings.log_level == "debug"
 )
+
+async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+
+async def get_session() -> AsyncSession:
+    async with async_session() as session:
+        yield session
+```
+
+### Models (основные)
+
+```python
+# app/database/models.py
+from sqlalchemy import String, Integer, BigInteger, ForeignKey, DateTime, Text, Boolean
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+from datetime import datetime
+
+class Base(DeclarativeBase):
+    pass
+
+class Client(Base):
+    __tablename__ = "clients"
+    
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(255))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    
+    projects: Mapped[list["Project"]] = relationship(back_populates="client")
+
+class Ticket(Base):
+    __tablename__ = "tickets"
+    
+    id: Mapped[int] = mapped_column(primary_key=True)
+    number: Mapped[int] = mapped_column(Integer, unique=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"))
+    tg_user_id: Mapped[int] = mapped_column(BigInteger)
+    category: Mapped[str] = mapped_column(String(50))
+    priority: Mapped[str] = mapped_column(String(20), default="normal")
+    status: Mapped[str] = mapped_column(String(20), default="new")
+    support_chat_id: Mapped[int] = mapped_column(BigInteger)
+    topic_id: Mapped[int] = mapped_column(Integer, nullable=True)
+    assigned_to_tg_user_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    first_response_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 ```
 
 ---
 
-## 9. Мониторинг
+## Bot Handlers
 
-### Health Check
-```
-GET /health
+### Router Structure
+
+```python
+# app/main.py
+from aiogram import Bot, Dispatcher
+from app.bot.handlers import start, ticket, operator, common, client_message
+
+dp = Dispatcher()
+
+# Private chat handlers
+dp.include_router(start.router)
+dp.include_router(ticket.router)
+dp.include_router(common.router)
+dp.include_router(client_message.router)
+
+# Group handlers
+dp.include_router(operator.router)
 ```
 
-### Logs
-- Structured logging via `structlog`
-- JSON format for production
-- Console format for development
+### Example Handler
+
+```python
+# app/bot/handlers/start.py
+from aiogram import Router, F
+from aiogram.types import Message
+from aiogram.filters import Command, CommandStart
+from aiogram.fsm.context import FSMContext
+
+from app.config.texts import Texts
+from app.config.settings import settings
+from app.database.operations import get_user_binding, create_user_binding
+from app.bot.keyboards.categories import get_categories_keyboard
+from app.bot.keyboards.triage import get_triage_keyboard
+
+router = Router(name="start")
+
+@router.message(CommandStart(deep_link=True))
+async def handle_start_with_code(message: Message, command: CommandStart) -> None:
+    """Handle /start with invite code deep link."""
+    code = command.args
+    project = await get_project_by_invite_code(code)
+    
+    if project:
+        await create_user_binding(
+            tg_user_id=message.from_user.id,
+            tg_username=message.from_user.username,
+            tg_name=message.from_user.full_name,
+            project_id=project.id
+        )
+        await message.answer(
+            Texts.WELCOME,
+            reply_markup=get_categories_keyboard()
+        )
+    else:
+        await message.answer(
+            Texts.INVALID_CODE,
+            reply_markup=get_triage_keyboard()
+        )
+
+@router.message(CommandStart())
+async def handle_start_no_code(message: Message) -> None:
+    """Handle /start without invite code."""
+    binding = await get_user_binding(message.from_user.id)
+    
+    if binding:
+        await message.answer(
+            Texts.WELCOME_BACK,
+            reply_markup=get_categories_keyboard()
+        )
+    else:
+        await message.answer(
+            Texts.NO_CODE_PROMPT,
+            reply_markup=get_triage_keyboard()
+        )
+```
 
 ---
 
-*Последнее обновление: 2026-02-05*
+## FSM States
+
+```python
+# app/bot/states/ticket.py
+from aiogram.fsm.state import State, StatesGroup
+
+class TicketCreation(StatesGroup):
+    """States for ticket creation flow."""
+    waiting_category = State()      # User selecting category
+    waiting_description = State()    # User typing description
+    waiting_attachments = State()    # User attaching files
+    waiting_urgency = State()        # For "Urgent" category only
+    
+class TriageFlow(StatesGroup):
+    """States for unknown user triage."""
+    waiting_company = State()        # User typing company name
+    waiting_contact = State()        # User typing contact info
+```
+
+---
+
+## Keyboards
+
+```python
+# app/bot/keyboards/categories.py
+from aiogram.types import InlineKeyboardMarkup
+from aiogram.utils.keyboard import InlineKeyboardBuilder
+from app.config.categories import CATEGORIES
+
+def get_categories_keyboard() -> InlineKeyboardMarkup:
+    """Build category selection inline keyboard."""
+    builder = InlineKeyboardBuilder()
+    
+    for cat in CATEGORIES:
+        builder.button(
+            text=cat["emoji"] + " " + cat["label"],
+            callback_data=f"category:{cat['id']}"
+        )
+    
+    builder.adjust(1)  # One button per row
+    return builder.as_markup()
+```
+
+---
+
+## Services
+
+```python
+# app/services/ticket.py
+from datetime import datetime
+from app.database.operations import create_ticket, get_next_ticket_number
+from app.services.notification import send_ticket_to_group
+
+async def create_new_ticket(
+    tg_user_id: int,
+    project_id: int,
+    category: str,
+    description: str,
+    priority: str = "normal"
+) -> Ticket:
+    """
+    Create new support ticket.
+    
+    1. Generate ticket number
+    2. Save to database
+    3. Create topic in Support Group
+    4. Send ticket card to topic
+    """
+    number = await get_next_ticket_number()
+    
+    ticket = await create_ticket(
+        number=number,
+        project_id=project_id,
+        tg_user_id=tg_user_id,
+        category=category,
+        priority=priority,
+        status="new"
+    )
+    
+    topic_id = await send_ticket_to_group(ticket, description)
+    
+    await update_ticket(ticket.id, topic_id=topic_id)
+    
+    return ticket
+```
+
+---
+
+## Entry Point
+
+```python
+# app/main.py
+import asyncio
+import logging
+from aiogram import Bot, Dispatcher
+from aiogram.enums import ParseMode
+from aiogram.client.default import DefaultBotProperties
+
+from app.config.settings import settings
+from app.database.connection import init_db
+from app.bot.handlers import start, ticket, operator, common, client_message
+from app.bot.middlewares.database import DatabaseMiddleware
+
+logging.basicConfig(level=settings.log_level.upper())
+logger = logging.getLogger(__name__)
+
+async def main():
+    # Initialize database
+    await init_db()
+    
+    # Create bot instance
+    bot = Bot(
+        token=settings.bot_token,
+        default=DefaultBotProperties(parse_mode=ParseMode.HTML)
+    )
+    
+    # Create dispatcher
+    dp = Dispatcher()
+    
+    # Setup middlewares
+    dp.message.middleware(DatabaseMiddleware())
+    dp.callback_query.middleware(DatabaseMiddleware())
+    
+    # Include routers
+    dp.include_router(start.router)
+    dp.include_router(ticket.router)
+    dp.include_router(common.router)
+    dp.include_router(client_message.router)
+    dp.include_router(operator.router)
+    
+    # Start polling
+    logger.info("Starting bot...")
+    await dp.start_polling(bot)
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+---
+
+## Тестирование
+
+### Fixtures
+
+```python
+# tests/conftest.py
+import pytest
+from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
+
+@pytest.fixture
+async def db_session():
+    """Create in-memory SQLite for tests."""
+    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    
+    session = async_sessionmaker(engine)()
+    yield session
+    await session.close()
+```
+
+### Example Test
+
+```python
+# tests/unit/test_ticket_service.py
+import pytest
+from app.services.ticket import create_new_ticket
+
+@pytest.mark.asyncio
+async def test_create_ticket(db_session):
+    """Test ticket creation with all required fields."""
+    ticket = await create_new_ticket(
+        tg_user_id=123456,
+        project_id=1,
+        category="bug",
+        description="Test description"
+    )
+    
+    assert ticket.number == 1
+    assert ticket.status == "new"
+    assert ticket.priority == "normal"
+```
+
+---
+
+## Запуск
+
+```bash
+# Development
+cd backend
+source .venv/bin/activate
+python -m app.main
+
+# With logging
+LOG_LEVEL=debug python -m app.main
+
+# Tests
+pytest -v --tb=short
+```
+
+---
+
+*Актуально для: 2026-02-05*
