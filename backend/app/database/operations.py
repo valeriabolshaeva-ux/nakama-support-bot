@@ -4,6 +4,7 @@ Database CRUD operations.
 All functions are async and require an AsyncSession.
 """
 
+import logging
 from datetime import datetime, timedelta
 from typing import List, Optional
 
@@ -202,16 +203,22 @@ async def get_project_by_invite_code(
     """
     Get project by invite code.
     
+    Comparison is case-insensitive and trims whitespace from input.
+    
     Args:
         session: Database session
-        invite_code: Invite code to search
+        invite_code: Invite code to search (will be stripped)
         
     Returns:
         Project if found and active, None otherwise
     """
+    code = invite_code.strip() if invite_code else ""
+    if not code:
+        return None
     result = await session.execute(
         select(Project)
-        .where(Project.invite_code == invite_code)
+        .where(Project.invite_code.isnot(None))
+        .where(func.lower(Project.invite_code) == code.lower())
         .where(Project.is_active == True)  # noqa: E712
     )
     return result.scalar_one_or_none()
@@ -247,6 +254,21 @@ async def create_project(
     await session.commit()
     await session.refresh(project)
     return project
+
+
+async def ensure_default_project(session: AsyncSession) -> None:
+    """
+    If no projects exist, create default client "Nakama" and project with invite_code "nakama".
+    Used so first deploy (e.g. on Railway) has a working invite link without running init_data.
+    """
+    result = await session.execute(select(func.count()).select_from(Project))
+    count = result.scalar() or 0
+    if count > 0:
+        return
+    client = await create_client(session, "Nakama")
+    await create_project(session, client_id=client.id, name="Support", invite_code="nakama")
+    logger = logging.getLogger(__name__)
+    logger.info("Created default client Nakama and project with invite code 'nakama'")
 
 
 # =============================================================================

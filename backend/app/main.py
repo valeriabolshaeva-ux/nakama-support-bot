@@ -24,7 +24,8 @@ from app.bot.handlers import (
 )
 from app.bot.middlewares.database import DatabaseMiddleware
 from app.config.settings import settings
-from app.database.connection import close_db, init_db
+from app.database.connection import DatabaseSessionManager, close_db, init_db
+from app.database import operations as ops
 from app.health import run_healthcheck_server
 
 # Configure logging
@@ -40,6 +41,8 @@ async def on_startup(bot: Bot) -> None:
     """Actions to perform on bot startup."""
     logger.info("Initializing database...")
     await init_db()
+    async with DatabaseSessionManager() as session:
+        await ops.ensure_default_project(session)
     
     # Log bot info
     bot_info = await bot.get_me()
