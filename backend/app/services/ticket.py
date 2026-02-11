@@ -175,10 +175,12 @@ class TicketService:
         )
         
         if ticket:
-            # Notify client
-            await self.notification.notify_client_ticket_status(
-                ticket.tg_user_id, ticket.number, "in_progress"
-            )
+            try:
+                await self.notification.notify_client_ticket_status(
+                    ticket.tg_user_id, ticket.number, "in_progress"
+                )
+            except Exception as e:
+                logger.warning("Failed to notify client of take: %s", e)
         
         return ticket
     
