@@ -66,6 +66,11 @@ async def main() -> None:
     logger.info(f"Bot token: {settings.bot_token[:10]}...{settings.bot_token[-5:]}")
     logger.info(f"Support chat ID: {settings.support_chat_id}")
     logger.info(f"Operators: {settings.operators}")
+    if not settings.operators:
+        logger.warning(
+            "OPERATORS is empty! Buttons 'Взять в работу' won't work. "
+            "In Railway Variables set OPERATORS=your_telegram_id (e.g. OPERATORS=373126255)"
+        )
     logger.info(f"Timezone: {settings.timezone}")
     logger.info(f"Working hours: {settings.work_hours_start}:00 - {settings.work_hours_end}:00")
     logger.info(f"Database: {settings.db_path}")

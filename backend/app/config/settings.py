@@ -20,7 +20,8 @@ class Settings(BaseSettings):
     )
     operators: list[int] = Field(
         default_factory=list,
-        description="List of operator Telegram user IDs"
+        description="List of operator Telegram user IDs (env: OPERATORS)",
+        validation_alias="OPERATORS",
     )
     
     @field_validator("bot_token", mode="before")
@@ -67,14 +68,14 @@ class Settings(BaseSettings):
     @field_validator("operators", mode="before")
     @classmethod
     def parse_operators(cls, v: Union[str, List[int]]) -> List[int]:
-        """Parse operators from comma-separated string (e.g. OPERATORS=123,456 in Railway)."""
+        """Parse OPERATORS from env: comma-separated numbers, no quotes (e.g. 373126255 or 123,456)."""
         if isinstance(v, str):
-            raw = v.strip()
+            raw = v.strip().strip('"\'')  # remove surrounding quotes if pasted
             if not raw:
                 return []
             result = []
             for x in raw.split(","):
-                part = x.strip()
+                part = x.strip().strip('"\'')
                 if not part:
                     continue
                 try:
