@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.bot.keyboards import get_categories_keyboard, get_triage_keyboard
 from app.bot.states.ticket import TriageFlow
+from app.config.settings import settings
 from app.config.texts import Texts
 from app.database import operations as ops
 
@@ -179,6 +180,27 @@ async def handle_start_no_code(
                     reply_markup=get_categories_keyboard()
                 )
                 return
+    
+    # Operators: auto-bind to default project (nakama) so they're not stuck "not bound"
+    if user_id in settings.operators:
+        project = await ops.get_project_by_invite_code(session, "nakama")
+        if project:
+            await ops.create_or_update_user_binding(
+                session,
+                tg_user_id=user_id,
+                project_id=project.id,
+                tg_username=username,
+                tg_name=message.from_user.full_name
+            )
+            logger.info(f"Operator {user_id} auto-bound to project {project.name}")
+            name = _display_name(message.from_user)
+            project_with_client = await ops.get_project_with_client(session, project.id)
+            project_name = project_with_client.name if project_with_client else project.name
+            await message.answer(
+                Texts.welcome_via_link(name=name, project_name=project_name),
+                reply_markup=get_categories_keyboard()
+            )
+            return
     
     # Unknown user - show triage
     logger.info(f"Unknown user {user_id} started without code")
