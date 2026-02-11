@@ -1,5 +1,6 @@
 """Application settings using Pydantic."""
 
+import os
 from typing import List, Optional, Union
 
 from pydantic import Field, field_validator
@@ -67,23 +68,28 @@ class Settings(BaseSettings):
     
     @field_validator("operators", mode="before")
     @classmethod
-    def parse_operators(cls, v: Union[str, List[int]]) -> List[int]:
-        """Parse OPERATORS from env: comma-separated numbers, no quotes (e.g. 373126255 or 123,456)."""
+    def parse_operators(cls, v: Union[str, List[int], None]) -> List[int]:
+        """Parse OPERATORS (or OPERATOR_IDS) from env: comma-separated numbers, no quotes."""
+        raw: Optional[str] = None
         if isinstance(v, str):
-            raw = v.strip().strip('"\'')  # remove surrounding quotes if pasted
-            if not raw:
-                return []
-            result = []
-            for x in raw.split(","):
-                part = x.strip().strip('"\'')
-                if not part:
-                    continue
-                try:
-                    result.append(int(part))
-                except ValueError:
-                    continue
-            return result
-        return v
+            raw = v.strip().strip('"\'')
+        if not raw:
+            # Fallback: Railway sometimes uses OPERATOR_IDS; try both
+            raw = os.environ.get("OPERATORS") or os.environ.get("OPERATOR_IDS")
+            if isinstance(raw, str):
+                raw = raw.strip().strip('"\'')
+        if not raw:
+            return []
+        result = []
+        for x in raw.split(","):
+            part = x.strip().strip('"\'')
+            if not part:
+                continue
+            try:
+                result.append(int(part))
+            except ValueError:
+                continue
+        return result
     
     @field_validator("work_days", mode="before")
     @classmethod
