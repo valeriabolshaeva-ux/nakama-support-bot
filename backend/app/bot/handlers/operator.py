@@ -44,69 +44,83 @@ async def callback_take_ticket(
     from app.config.categories import get_sla_time, get_category_label
     from app.bot.keyboards.operator import get_ticket_inprogress_keyboard
     
+    async def _answer(msg: str, alert: bool = False) -> None:
+        try:
+            await callback.answer(msg, show_alert=alert)
+        except Exception:
+            pass
+    
     try:
         ticket_id = int(callback.data.split(":")[2])
     except (IndexError, ValueError):
-        await callback.answer("Ошибка: неверные данные", show_alert=True)
+        await _answer("Ошибка: неверные данные", alert=True)
         return
-    
+
     operator_id = callback.from_user.id
     operator_username = callback.from_user.username
-    
+
     try:
         service = TicketService(bot, session)
         ticket = await service.take_ticket(ticket_id, operator_id, operator_username)
     except Exception as e:
         logger.exception("take_ticket failed: %s", e)
-        await callback.answer("Ошибка при взятии тикета", show_alert=True)
+        await _answer("Ошибка при взятии тикета", alert=True)
         return
-    
-    if ticket:
-        await callback.answer("Тикет взят в работу!")
-        
-        sla_time = get_sla_time(ticket.category)
-        category_label = get_category_label(ticket.category)
-        
-        status_lines = [
-            f"✅ Тикет #{ticket.number} взят в работу",
-            f"👤 Оператор: @{operator_username or operator_id}",
-            f"📁 Категория: {category_label}",
-        ]
-        if sla_time:
-            status_lines.append(f"⏱️ Время на решение: {sla_time}")
-        elif ticket.category == "feature":
-            status_lines.append("💡 Это запрос на улучшение — без SLA")
-        else:
-            status_lines.append("📋 Вернитесь к клиенту с деталями")
-        
-        status_msg = "\n".join(status_lines)
-        thread_id = getattr(callback.message, "message_thread_id", None)
-        
-        try:
-            if thread_id:
-                await bot.send_message(
-                    chat_id=callback.message.chat.id,
-                    message_thread_id=thread_id,
-                    text=status_msg,
-                    reply_markup=get_ticket_inprogress_keyboard(ticket_id),
-                )
+
+    try:
+        if ticket:
+            await _answer("Тикет взят в работу!")
+            sla_time = get_sla_time(ticket.category)
+            category_label = get_category_label(ticket.category)
+            status_lines = [
+                f"✅ Тикет #{ticket.number} взят в работу",
+                f"👤 Оператор: @{operator_username or operator_id}",
+                f"📁 Категория: {category_label}",
+            ]
+            if sla_time:
+                status_lines.append(f"⏱️ Время на решение: {sla_time}")
+            elif ticket.category == "feature":
+                status_lines.append("💡 Это запрос на улучшение — без SLA")
             else:
-                await callback.message.reply(
-                    status_msg,
-                    reply_markup=get_ticket_inprogress_keyboard(ticket_id),
-                )
-        except Exception as e:
-            logger.exception("Failed to send take confirmation to group: %s", e)
-            await callback.answer("Тикет взят, но не удалось отправить сообщение в группу", show_alert=True)
-            return
-        
-        logger.info(f"Operator {operator_id} took ticket #{ticket.number}")
-    else:
-        existing_ticket = await ops.get_ticket_by_id(session, ticket_id)
-        if existing_ticket and existing_ticket.assigned_to_tg_user_id:
-            await callback.answer("Тикет уже в работе!", show_alert=True)
+                status_lines.append("📋 Вернитесь к клиенту с деталями")
+            status_msg = "\n".join(status_lines)
+            thread_id = getattr(callback.message, "message_thread_id", None)
+            try:
+                if thread_id:
+                    await bot.send_message(
+                        chat_id=callback.message.chat.id,
+                        message_thread_id=thread_id,
+                        text=status_msg,
+                        reply_markup=get_ticket_inprogress_keyboard(ticket_id),
+                    )
+                else:
+                    await callback.message.reply(
+                        status_msg,
+                        reply_markup=get_ticket_inprogress_keyboard(ticket_id),
+                    )
+            except Exception as e:
+                logger.exception("Failed to send take confirmation to group: %s", e)
+                await _answer("Тикет взят, но не удалось отправить сообщение в группу", alert=True)
+                return
+            logger.info(f"Operator {operator_id} took ticket #{ticket.number}")
         else:
-            await callback.answer("Ошибка", show_alert=True)
+            existing_ticket = await ops.get_ticket_by_id(session, ticket_id)
+            if existing_ticket and existing_ticket.assigned_to_tg_user_id:
+                await _answer("Тикет уже в работе!", alert=True)
+            elif not existing_ticket:
+                logger.warning("take_ticket returned None, ticket_id=%s not found in DB", ticket_id)
+                await _answer("Тикет не найден в базе", alert=True)
+            else:
+                logger.warning(
+                    "take_ticket returned None for ticket_id=%s, status=%s assigned_to=%s",
+                    ticket_id,
+                    getattr(existing_ticket, "status", None),
+                    getattr(existing_ticket, "assigned_to_tg_user_id", None),
+                )
+                await _answer("Не удалось взять тикет. Попробуйте ещё раз.", alert=True)
+    except Exception as e:
+        logger.exception("callback_take_ticket unexpected error: %s", e)
+        await _answer("Произошла ошибка. Проверьте логи в Railway.", alert=True)
 
 
 @router.callback_query(F.data.startswith("op:pause:"), IsOperator())
