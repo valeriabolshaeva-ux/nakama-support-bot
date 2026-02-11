@@ -201,6 +201,11 @@ async def callback_cancel_ticket(
 async def callback_operator_buttons_no_access(callback: CallbackQuery) -> None:
     """When a non-operator clicks operator buttons — show how to add their ID to OPERATORS."""
     user_id = callback.from_user.id
+    logger.warning(
+        "Operator button clicked by user_id=%s (not in OPERATORS list: %s)",
+        user_id,
+        settings.operators,
+    )
     await callback.answer(
         Texts.OPERATOR_NEED_ID.format(user_id=user_id),
         show_alert=True

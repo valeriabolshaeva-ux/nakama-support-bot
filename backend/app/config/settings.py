@@ -67,11 +67,21 @@ class Settings(BaseSettings):
     @field_validator("operators", mode="before")
     @classmethod
     def parse_operators(cls, v: Union[str, List[int]]) -> List[int]:
-        """Parse operators from comma-separated string."""
+        """Parse operators from comma-separated string (e.g. OPERATORS=123,456 in Railway)."""
         if isinstance(v, str):
-            if not v.strip():
+            raw = v.strip()
+            if not raw:
                 return []
-            return [int(x.strip()) for x in v.split(",") if x.strip()]
+            result = []
+            for x in raw.split(","):
+                part = x.strip()
+                if not part:
+                    continue
+                try:
+                    result.append(int(part))
+                except ValueError:
+                    continue
+            return result
         return v
     
     @field_validator("work_days", mode="before")

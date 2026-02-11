@@ -12,6 +12,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.bot.keyboards import get_categories_keyboard
+from app.config.settings import settings
 from app.config.texts import Texts
 from app.database import operations as ops
 from app.database.models import UserBinding
@@ -33,6 +34,16 @@ async def handle_myid(message: Message) -> None:
     """Show user's Telegram ID (for adding to OPERATORS in bot settings)."""
     user_id = message.from_user.id
     await message.answer(Texts.MYID_RESPONSE.format(user_id=user_id))
+
+
+@router.message(Command("am_i_operator"))
+async def handle_am_i_operator(message: Message) -> None:
+    """Check if current user is in OPERATORS list (for debugging)."""
+    user_id = message.from_user.id
+    if user_id in settings.operators:
+        await message.answer(Texts.AM_I_OPERATOR_YES)
+    else:
+        await message.answer(Texts.AM_I_OPERATOR_NO.format(user_id=user_id))
 
 
 @router.message(Command("project"))
