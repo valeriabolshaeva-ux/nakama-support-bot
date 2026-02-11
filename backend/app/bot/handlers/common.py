@@ -28,6 +28,13 @@ async def handle_help(message: Message) -> None:
     await message.answer(Texts.HELP_TEXT)
 
 
+@router.message(Command("myid"))
+async def handle_myid(message: Message) -> None:
+    """Show user's Telegram ID (for adding to OPERATORS in bot settings)."""
+    user_id = message.from_user.id
+    await message.answer(Texts.MYID_RESPONSE.format(user_id=user_id))
+
+
 @router.message(Command("project"))
 async def handle_project(
     message: Message,

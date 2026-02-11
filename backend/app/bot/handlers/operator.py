@@ -197,6 +197,16 @@ async def callback_cancel_ticket(
     )
 
 
+@router.callback_query(F.data.startswith("op:"), ~IsOperator())
+async def callback_operator_buttons_no_access(callback: CallbackQuery) -> None:
+    """When a non-operator clicks operator buttons — show how to add their ID to OPERATORS."""
+    user_id = callback.from_user.id
+    await callback.answer(
+        Texts.OPERATOR_NEED_ID.format(user_id=user_id),
+        show_alert=True
+    )
+
+
 @router.callback_query(F.data.startswith("op:details:"), IsOperator())
 async def callback_request_details(
     callback: CallbackQuery,
